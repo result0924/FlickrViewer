@@ -95,6 +95,7 @@ class MyImageView: UIImageView {
             DispatchQueue.main.async {
                 self.image = imageToCache
                 self.clearTask()
+                CustomPhotoAlbum.sharedInstance.save(image: imageToCache!)
             }
         })
         task!.resume()
