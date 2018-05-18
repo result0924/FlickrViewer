@@ -7,6 +7,7 @@
 //
 
 import UIKit
+import SDWebImage
 
 private let reuseIdentifier = "Cell"
 private let ImageViewTag = 1
@@ -14,6 +15,8 @@ private let ImageViewTag = 1
 class SearchPhotosCollectionViewController: UICollectionViewController {
 
     var photos = [[String: AnyObject]]()
+    typealias functionBlock1 = () -> ()//不带参数
+    var timer: Timer?
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -31,12 +34,47 @@ class SearchPhotosCollectionViewController: UICollectionViewController {
         layout.minimumLineSpacing = minimumLineSpacing
         
         layout.itemSize = CGSize(width: width, height: width)
+        
+        for i in 0...1000 {
+            if i == 0 {
+                fetchFlickrApi()
+            } else {
+                let deadlineTime = DispatchTime.now() + .seconds(i + 2)
+                DispatchQueue.main.asyncAfter(deadline: deadlineTime) {
+                    self.fetchFlickrApi()
+                }
+            }
+        }
+    }
 
-        FlickrAPI.searchPhotos(text: "Taiwan") { (photosArray, error) in
+    func fetchFlickrApi() -> Void {
+        // Your code with delay
+        let array = ["food", "taiwan", "sport", "music", "movie"]
+        let randomIndex = Int(arc4random_uniform(UInt32(array.count)))
+        let searchText = array[randomIndex]
+        
+        FlickrAPI.searchPhotos(text: searchText) { (photosArray, error) in
             self.photos = photosArray
-            print(self.photos.count)
             DispatchQueue.main.async {
                 self.collectionView?.reloadData()
+            }
+            
+            for j in 0...self.photos.count - 1 {
+                let photoDict = self.photos[j]
+                
+                if let imageUrlString = photoDict["url_m"] as? String
+                {
+                    if let url = URL(string: imageUrlString) {
+                        if (SDImageCache.shared().diskImageDataExists(withKey: imageUrlString)) {
+                            CustomPhotoAlbum.sharedInstance.save(image: SDImageCache.shared().imageFromCache(forKey: imageUrlString)!)
+                            print("has cache")
+                        } else {
+                            let data = try? Data(contentsOf: url) //make sure your image in this url does exist, otherwise unwrap in a if let check / try-catch
+                            CustomPhotoAlbum.sharedInstance.save(image: UIImage(data: data!)!)
+                            print("no cache")
+                        }
+                    }
+                }
             }
         }
     }
@@ -53,7 +91,7 @@ class SearchPhotosCollectionViewController: UICollectionViewController {
         
         if let imageUrlString = photoDict["url_m"] as? String
         {
-            cell.imageView.loadFromURL(imageUrlString)
+            cell.imageView.sd_setImage(with: URL(string: imageUrlString), placeholderImage: UIImage(named: "placeholder.png"))
         }
         
         return cell
@@ -95,7 +133,6 @@ class MyImageView: UIImageView {
             DispatchQueue.main.async {
                 self.image = imageToCache
                 self.clearTask()
-                CustomPhotoAlbum.sharedInstance.save(image: imageToCache!)
             }
         })
         task!.resume()
